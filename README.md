@@ -61,6 +61,36 @@ gh notify [Flags]
 | `-u URL` | (un)subscribe a URL, useful for issues/prs of interest  | `gh notify -u https://github.com/cli/cli/issues/659` |
 | `-w`     | display the preview window in interactive mode          | `gh notify -an 10 -w`                                |
 
+### Configuration
+
+You can configure `gh-notify` using either environment variables or a TOML
+config file. All configuration options can be set via environment variables, or
+by creating a config file named `gh-notify.toml` in one of the following
+locations:
+
+- The current working directory
+- `$HOME/.config/gh-notify/gh-notify.toml`
+
+Example `gh-notify.toml`:
+
+```toml
+GH_NOTIFY_MARK_ALL_READ_KEY = "ctrl-a"
+GH_NOTIFY_OPEN_BROWSER_KEY = "ctrl-b"
+GH_NOTIFY_VIEW_DIFF_KEY = "ctrl-d"
+GH_NOTIFY_VIEW_PATCH_KEY = "ctrl-p"
+GH_NOTIFY_RELOAD_KEY = "ctrl-r"
+GH_NOTIFY_MARK_READ_KEY = "ctrl-t"
+GH_NOTIFY_COMMENT_KEY = "ctrl-x"
+GH_NOTIFY_TOGGLE_KEY = "ctrl-y"
+GH_NOTIFY_RESIZE_PREVIEW_KEY = "btab"
+GH_NOTIFY_VIEW_KEY = "enter"
+GH_NOTIFY_TOGGLE_PREVIEW_KEY = "tab"
+GH_NOTIFY_TOGGLE_HELP_KEY = "?"
+GH_NOTIFY_DEBUG_MODE = false
+```
+
+Environment variables always override config file values.
+
 ### Key Bindings fzf
 
 | Keys                           | Description                                         | Customization Environment Variable |
