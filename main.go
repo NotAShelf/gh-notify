@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +13,8 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -75,45 +76,61 @@ func die(msg string) {
 	os.Exit(1)
 }
 
-func printHelpText() {
-	fmt.Printf("%sUsage%s\n  gh notify [Flags]\n\n", whiteBold(""), "")
+func printHelpText(cmd *cobra.Command) {
+	fmt.Printf("%sUsage%s\n  %s\n\n", whiteBold(""), "", cmd.UseLine())
 	fmt.Printf("%sFlags%s\n", whiteBold(""), "")
-	fmt.Printf("  %s<none>%s  show all unread notifications\n", green(""), "")
-	fmt.Printf("  %s-a    %s  show all (read/ unread) notifications\n", green(""), "")
-	fmt.Printf("  %s-e    %s  exclude notifications matching a string (REGEX support)\n", green(""), "")
-	fmt.Printf("  %s-f    %s  filter notifications matching a string (REGEX support)\n", green(""), "")
-	fmt.Printf("  %s-h    %s  show the help page\n", green(""), "")
-	fmt.Printf("  %s-n NUM%s  max number of notifications to show\n", green(""), "")
-	fmt.Printf("  %s-p    %s  show only participating or mentioned notifications\n", green(""), "")
-	fmt.Printf("  %s-r    %s  mark all notifications as read\n", green(""), "")
-	fmt.Printf("  %s-s    %s  print a static display\n", green(""), "")
-	fmt.Printf("  %s-u URL%s  (un)subscribe a URL, useful for issues/prs of interest\n", green(""), "")
-	fmt.Printf("  %s-w    %s  display the preview window in interactive mode\n\n", green(""), "")
-	fmt.Printf("%sKey Bindings fzf%s\n", whiteBold(""), "")
-	fmt.Printf("  %s%s%s        toggle help\n", green(""), ghNotifyToggleHelpKey, "")
-	fmt.Printf("  %s%s%s    view the selected notification in the 'less' pager\n", green(""), ghNotifyViewKey, "")
-	fmt.Printf("  %s%s%s      toggle notification preview\n", green(""), ghNotifyTogglePreviewKey, "")
-	fmt.Printf("  %s%s%s       resize the preview window\n", green(""), ghNotifyResizePreviewKey, "")
-	fmt.Printf("  %sshift+↑↓ %s  scroll the preview up/ down\n", green(""), "")
-	fmt.Printf("  %s%s%s   mark all displayed notifications as read and reload\n", green(""), ghNotifyMarkAllReadKey, "")
-	fmt.Printf("  %s%s%s   browser\n", green(""), ghNotifyOpenBrowserKey, "")
-	fmt.Printf("  %s%s%s   view diff\n", green(""), ghNotifyViewDiffKey, "")
-	fmt.Printf("  %s%s%s   view diff in patch format\n", green(""), ghNotifyViewPatchKey, "")
-	fmt.Printf("  %s%s%s   reload\n", green(""), ghNotifyReloadKey, "")
-	fmt.Printf("  %s%s%s   mark the selected notification as read and reload\n", green(""), ghNotifyMarkReadKey, "")
-	fmt.Printf("  %s%s%s   write a comment with the editor and quit\n", green(""), ghNotifyCommentKey, "")
-	fmt.Printf("  %s%s%s   toggle the selected notification\n", green(""), ghNotifyToggleKey, "")
-	fmt.Printf("  %sesc      %s  quit\n\n", green(""), "")
+	maxlen := 0
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		l := len(f.Name)
+		if f.Shorthand != "" {
+			l += 4 // " -x,"
+		}
+		if l > maxlen {
+			maxlen = l
+		}
+	})
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		var flagStr string
+		if f.Shorthand != "" {
+			flagStr = fmt.Sprintf("  %s, %s", green("-"+f.Shorthand), green("--"+f.Name))
+		} else {
+			flagStr = fmt.Sprintf("      %s", green("--"+f.Name))
+		}
+		padding := maxlen + 6 - len(strings.ReplaceAll(flagStr, "\x1b[0m", ""))
+		if padding < 2 {
+			padding = 2
+		}
+		desc := f.Usage
+		if f.DefValue != "" && f.DefValue != "false" {
+			desc += fmt.Sprintf(" (default: %s)", f.DefValue)
+		}
+		fmt.Printf("%s%s%s\n", flagStr, strings.Repeat(" ", padding), desc)
+	})
+	fmt.Printf("\n%sKey Bindings fzf%s\n", whiteBold(""), "")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyToggleHelpKey), "toggle help")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyViewKey), "view the selected notification in the 'less' pager")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyTogglePreviewKey), "toggle notification preview")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyResizePreviewKey), "resize the preview window")
+	fmt.Printf("  %-10s  %s\n", green("shift+↑↓"), "scroll the preview up/ down")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyMarkAllReadKey), "mark all displayed notifications as read and reload")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyOpenBrowserKey), "browser")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyViewDiffKey), "view diff")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyViewPatchKey), "view diff in patch format")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyReloadKey), "reload")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyMarkReadKey), "mark the selected notification as read and reload")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyCommentKey), "write a comment with the editor and quit")
+	fmt.Printf("  %-10s  %s\n", green(ghNotifyToggleKey), "toggle the selected notification")
+	fmt.Printf("  %-10s  %s\n\n", green("esc"), "quit")
 	fmt.Printf("%sTable Format%s\n", whiteBold(""), "")
-	fmt.Printf("  %sunread symbol%s  indicates unread status\n", green(""), "")
-	fmt.Printf("  %stime         %s  time of last read for unread; otherwise, time of last update\n", green(""), "")
-	fmt.Printf("  %srepo         %s  related repository\n", green(""), "")
-	fmt.Printf("  %stype         %s  notification type\n", green(""), "")
-	fmt.Printf("  %snumber       %s  associated number\n", green(""), "")
-	fmt.Printf("  %sreason       %s  trigger reason\n", green(""), "")
-	fmt.Printf("  %stitle        %s  notification title\n\n", green(""), "")
+	fmt.Printf("  %s  %s\n", green("unread symbol"), "indicates unread status")
+	fmt.Printf("  %s  %s\n", green("time"), "time of last read for unread; otherwise, time of last update")
+	fmt.Printf("  %s  %s\n", green("repo"), "related repository")
+	fmt.Printf("  %s  %s\n", green("type"), "notification type")
+	fmt.Printf("  %s  %s\n", green("number"), "associated number")
+	fmt.Printf("  %s  %s\n", green("reason"), "trigger reason")
+	fmt.Printf("  %s  %s\n\n", green("title"), "notification title")
 	fmt.Printf("%sExample%s\n", whiteBold(""), "")
-	fmt.Printf("    %s# Display the last 20 notifications%s\n    gh notify -an 20\n", darkGray(""), "")
+	fmt.Printf("    %s# Display the last 20 notifications%s\n    gh-notify --all --num 20\n", darkGray(""), "")
 }
 
 func checkVersion(tool, threshold string) {
@@ -295,64 +312,73 @@ func main() {
 		exclusion, filter, updateSubscriptionURL string
 		numNotifications                         int
 		onlyParticipating, includeAll            bool
-		printStatic, markRead, showHelp          bool
+		printStatic, markRead                    bool
 	)
-	flag.StringVar(&exclusion, "e", "", "")
-	flag.StringVar(&filter, "f", "", "")
-	flag.IntVar(&numNotifications, "n", ghNotifyPerPageLimit, "")
-	flag.StringVar(&updateSubscriptionURL, "u", "", "")
-	flag.BoolVar(&onlyParticipating, "p", false, "")
-	flag.BoolVar(&includeAll, "a", false, "")
-	flag.BoolVar(&printStatic, "s", false, "")
-	flag.BoolVar(&markRead, "r", false, "")
-	flag.BoolVar(&showHelp, "h", false, "")
-	flag.Parse()
 
-	if showHelp {
-		printHelpText()
-		os.Exit(0)
+	rootCmd := &cobra.Command{
+		Use:   "gh-notify",
+		Short: "GitHub notifications CLI",
+		Long:  "A CLI for managing GitHub notifications.",
+		Run: func(cmd *cobra.Command, args []string) {
+			if _, err := exec.LookPath("gh"); err != nil {
+				die("install 'gh'")
+			}
+
+			if markRead {
+				if exclusion != "" || filter != "" {
+					die("Can't mark all notifications as read when either the '--exclude' or '--filter' flag was used, as it would also mark notifications as read that are filtered out.")
+				}
+				if err := markAllRead(isoTime()); err != nil {
+					die("Failed to mark notifications as read.")
+				}
+				fmt.Println("All notifications have been marked as read.")
+				os.Exit(0)
+			}
+
+			if !printStatic {
+				if _, err := exec.LookPath("fzf"); err != nil {
+					die("install 'fzf' or use the --static flag")
+				}
+				checkVersion("fzf", minFzfVersion)
+			}
+
+			notifs, err := printNotifs(numNotifications, onlyParticipating, includeAll, exclusion, filter)
+			if err != nil {
+				die(err.Error())
+			}
+			if notifs == "" {
+				fmt.Println(finalMsg)
+				os.Exit(0)
+			}
+			if printStatic {
+				for _, line := range strings.Split(notifs, "\n") {
+					cols := strings.Split(line, "\t")
+					if len(cols) > 6 {
+						fmt.Println(strings.Join(cols[6:], "\t"))
+					}
+				}
+				os.Exit(0)
+			}
+			runFzf(notifs)
+		},
 	}
 
-	if _, err := exec.LookPath("gh"); err != nil {
-		die("install 'gh'")
-	}
+	rootCmd.Flags().StringVarP(&exclusion, "exclude", "e", "", "exclude notifications matching a string (REGEX support)")
+	rootCmd.Flags().StringVarP(&filter, "filter", "f", "", "filter notifications matching a string (REGEX support)")
+	rootCmd.Flags().IntVarP(&numNotifications, "num", "n", ghNotifyPerPageLimit, "max number of notifications to show")
+	rootCmd.Flags().StringVarP(&updateSubscriptionURL, "url", "u", "", "(un)subscribe a URL, useful for issues/prs of interest")
+	rootCmd.Flags().BoolVarP(&onlyParticipating, "participating", "p", false, "show only participating or mentioned notifications")
+	rootCmd.Flags().BoolVarP(&includeAll, "all", "a", false, "show all (read/unread) notifications")
+	rootCmd.Flags().BoolVarP(&printStatic, "static", "s", false, "print a static display")
+	rootCmd.Flags().BoolVarP(&markRead, "mark-read", "r", false, "mark all notifications as read")
 
-	if markRead {
-		if exclusion != "" || filter != "" {
-			die("Can't mark all notifications as read when either the '-e' or '-f' flag was used, as it would also mark notifications as read that are filtered out.")
-		}
-		if err := markAllRead(isoTime()); err != nil {
-			die("Failed to mark notifications as read.")
-		}
-		fmt.Println("All notifications have been marked as read.")
-		os.Exit(0)
-	}
+	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		printHelpText(cmd)
+	})
 
-	if !printStatic {
-		if _, err := exec.LookPath("fzf"); err != nil {
-			die("install 'fzf' or use the -s flag")
-		}
-		checkVersion("fzf", minFzfVersion)
-	}
-
-	notifs, err := printNotifs(numNotifications, onlyParticipating, includeAll, exclusion, filter)
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		die(err.Error())
 	}
-	if notifs == "" {
-		fmt.Println(finalMsg)
-		os.Exit(0)
-	}
-	if printStatic {
-		for _, line := range strings.Split(notifs, "\n") {
-			cols := strings.Split(line, "\t")
-			if len(cols) > 6 {
-				fmt.Println(strings.Join(cols[6:], "\t"))
-			}
-		}
-		os.Exit(0)
-	}
-	runFzf(notifs)
 }
 
 func runFzf(notifs string) {
