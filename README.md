@@ -74,15 +74,6 @@ locations:
 Example `gh-notify.toml`:
 
 ```toml
-GH_NOTIFY_MARK_ALL_READ_KEY = "ctrl-a"
-GH_NOTIFY_OPEN_BROWSER_KEY = "ctrl-b"
-GH_NOTIFY_VIEW_DIFF_KEY = "ctrl-d"
-GH_NOTIFY_VIEW_PATCH_KEY = "ctrl-p"
-GH_NOTIFY_RELOAD_KEY = "ctrl-r"
-GH_NOTIFY_MARK_READ_KEY = "ctrl-t"
-GH_NOTIFY_COMMENT_KEY = "ctrl-x"
-GH_NOTIFY_TOGGLE_KEY = "ctrl-y"
-GH_NOTIFY_RESIZE_PREVIEW_KEY = "btab"
 GH_NOTIFY_VIEW_KEY = "enter"
 GH_NOTIFY_TOGGLE_PREVIEW_KEY = "tab"
 GH_NOTIFY_TOGGLE_HELP_KEY = "?"
@@ -93,36 +84,12 @@ Environment variables always override config file values.
 
 ### Key Bindings fzf
 
-| Keys                           | Description                                         | Customization Environment Variable |
-| ------------------------------ | --------------------------------------------------- | ---------------------------------- |
-| <kbd>?</kbd>                   | toggle help                                         | `GH_NOTIFY_TOGGLE_HELP_KEY`        |
-| <kbd>enter</kbd>               | view the selected notification in the 'less' pager  | `GH_NOTIFY_VIEW_KEY`               |
-| <kbd>tab</kbd>                 | toggle notification preview                         | `GH_NOTIFY_TOGGLE_PREVIEW_KEY`     |
-| <kbd>shift</kbd><kbd>tab</kbd> | resize the preview window                           | `GH_NOTIFY_RESIZE_PREVIEW_KEY`     |
-| <kbd>shift</kbd><kbd>↑↓</kbd>  | scroll the preview up/ down                         |                                    |
-| <kbd>ctrl</kbd><kbd>a</kbd>    | mark all displayed notifications as read and reload | `GH_NOTIFY_MARK_ALL_READ_KEY`      |
-| <kbd>ctrl</kbd><kbd>b</kbd>    | browser                                             | `GH_NOTIFY_OPEN_BROWSER_KEY`       |
-| <kbd>ctrl</kbd><kbd>d</kbd>    | view diff                                           | `GH_NOTIFY_VIEW_DIFF_KEY`          |
-| <kbd>ctrl</kbd><kbd>p</kbd>    | view diff in patch format                           | `GH_NOTIFY_VIEW_PATCH_KEY`         |
-| <kbd>ctrl</kbd><kbd>r</kbd>    | reload                                              | `GH_NOTIFY_RELOAD_KEY`             |
-| <kbd>ctrl</kbd><kbd>t</kbd>    | mark the selected notification as read and reload   | `GH_NOTIFY_MARK_READ_KEY`          |
-| <kbd>ctrl</kbd><kbd>x</kbd>    | write a comment with the editor and quit            | `GH_NOTIFY_COMMENT_KEY`            |
-| <kbd>ctrl</kbd><kbd>y</kbd>    | toggle the selected notification                    | `GH_NOTIFY_TOGGLE_KEY`             |
-| <kbd>esc</kbd>                 | quit                                                |                                    |
-
-### Table Format
-
-| Field         | Description                                                  |
-| ------------- | ------------------------------------------------------------ |
-| unread symbol | indicates unread status                                      |
-| time          | time of last read for unread; otherwise, time of last update |
-| repo          | related repository                                           |
-| type          | notification type                                            |
-| number        | associated number                                            |
-| reason        | trigger reason                                               |
-| title         | notification title                                           |
-
----
+| Keys             | Description                                        | Customization Environment Variable |
+| ---------------- | -------------------------------------------------- | ---------------------------------- |
+| <kbd>?</kbd>     | toggle help                                        | `GH_NOTIFY_TOGGLE_HELP_KEY`        |
+| <kbd>enter</kbd> | view the selected notification in the 'less' pager | `GH_NOTIFY_VIEW_KEY`               |
+| <kbd>tab</kbd>   | toggle notification preview                        | `GH_NOTIFY_TOGGLE_PREVIEW_KEY`     |
+| <kbd>esc</kbd>   | quit                                               |                                    |
 
 ## Customizing
 

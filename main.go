@@ -33,15 +33,6 @@ var (
 )
 
 var (
-	ghNotifyMarkAllReadKey,
-	ghNotifyOpenBrowserKey,
-	ghNotifyViewDiffKey,
-	ghNotifyViewPatchKey,
-	ghNotifyReloadKey,
-	ghNotifyMarkReadKey,
-	ghNotifyCommentKey,
-	ghNotifyToggleKey,
-	ghNotifyResizePreviewKey,
 	ghNotifyViewKey,
 	ghNotifyTogglePreviewKey,
 	ghNotifyToggleHelpKey string
@@ -108,27 +99,7 @@ func printHelpText(cmd *cobra.Command) {
 	fmt.Printf("  %-10s  %s\n", green(ghNotifyToggleHelpKey), "toggle help")
 	fmt.Printf("  %-10s  %s\n", green(ghNotifyViewKey), "view the selected notification in the 'less' pager")
 	fmt.Printf("  %-10s  %s\n", green(ghNotifyTogglePreviewKey), "toggle notification preview")
-	fmt.Printf("  %-10s  %s\n", green(ghNotifyResizePreviewKey), "resize the preview window")
-	fmt.Printf("  %-10s  %s\n", green("shift+↑↓"), "scroll the preview up/ down")
-	fmt.Printf("  %-10s  %s\n", green(ghNotifyMarkAllReadKey), "mark all displayed notifications as read and reload")
-	fmt.Printf("  %-10s  %s\n", green(ghNotifyOpenBrowserKey), "browser")
-	fmt.Printf("  %-10s  %s\n", green(ghNotifyViewDiffKey), "view diff")
-	fmt.Printf("  %-10s  %s\n", green(ghNotifyViewPatchKey), "view diff in patch format")
-	fmt.Printf("  %-10s  %s\n", green(ghNotifyReloadKey), "reload")
-	fmt.Printf("  %-10s  %s\n", green(ghNotifyMarkReadKey), "mark the selected notification as read and reload")
-	fmt.Printf("  %-10s  %s\n", green(ghNotifyCommentKey), "write a comment with the editor and quit")
-	fmt.Printf("  %-10s  %s\n", green(ghNotifyToggleKey), "toggle the selected notification")
 	fmt.Printf("  %-10s  %s\n\n", green("esc"), "quit")
-	fmt.Printf("%sTable Format%s\n", whiteBold(""), "")
-	fmt.Printf("  %s  %s\n", green("unread symbol"), "indicates unread status")
-	fmt.Printf("  %s  %s\n", green("time"), "time of last read for unread; otherwise, time of last update")
-	fmt.Printf("  %s  %s\n", green("repo"), "related repository")
-	fmt.Printf("  %s  %s\n", green("type"), "notification type")
-	fmt.Printf("  %s  %s\n", green("number"), "associated number")
-	fmt.Printf("  %s  %s\n", green("reason"), "trigger reason")
-	fmt.Printf("  %s  %s\n\n", green("title"), "notification title")
-	fmt.Printf("%sExample%s\n", whiteBold(""), "")
-	fmt.Printf("    %s# Display the last 20 notifications%s\n    gh-notify --all --num 20\n", darkGray(""), "")
 }
 
 func ghRestApiClient() *api.RESTClient {
@@ -181,28 +152,6 @@ func abbreviate(s string, max int) string {
 	return s[:max-1] + "…"
 }
 
-func timeAgo(lastRead, updated string, unread bool) string {
-	var t time.Time
-	var err error
-	if unread && lastRead != "" {
-		t, err = time.Parse(time.RFC3339, lastRead)
-	} else {
-		t, err = time.Parse(time.RFC3339, updated)
-	}
-	if err != nil {
-		return "Not available"
-	}
-	diff := time.Since(t)
-	switch {
-	case diff < time.Hour:
-		return fmt.Sprintf("%dmin ago", int(diff.Minutes()))
-	case diff < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(diff.Hours()))
-	default:
-		return t.Format("02/Jan 15:04")
-	}
-}
-
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -219,7 +168,7 @@ func max(a, b int) int {
 
 func markAllRead(isoTime string) error {
 	client := ghRestApiClient()
-	body := map[string]interface{}{
+	body := map[string]any{
 		"last_read_at": isoTime,
 		"read":         true,
 	}
@@ -449,7 +398,6 @@ func (m Model) View() string {
 			end = entriesHeight
 		} else if m.cursor > end-entriesHeight/2 {
 			start = end - entriesHeight
-			end = end
 		} else {
 			start = m.cursor - entriesHeight/2
 			end = start + entriesHeight
@@ -499,7 +447,7 @@ func (m Model) View() string {
 	}
 
 	if m.showHelp {
-		help := "↑/↓: Move  Enter/Tab: Preview  ?: Toggle Help  q/esc: Quit"
+		help := fmt.Sprintf("↑/↓: Move  %s/%s: Preview  %s: Toggle Help  q/esc: Quit", ghNotifyViewKey, ghNotifyTogglePreviewKey, ghNotifyToggleHelpKey)
 		helpLine := helpStyle.Render(help)
 		lines := strings.Split(b.String(), "\n")
 		if len(lines) > m.height-1 {
@@ -522,15 +470,6 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	// Defaults
-	viper.SetDefault("GH_NOTIFY_MARK_ALL_READ_KEY", "ctrl-a")
-	viper.SetDefault("GH_NOTIFY_OPEN_BROWSER_KEY", "ctrl-b")
-	viper.SetDefault("GH_NOTIFY_VIEW_DIFF_KEY", "ctrl-d")
-	viper.SetDefault("GH_NOTIFY_VIEW_PATCH_KEY", "ctrl-p")
-	viper.SetDefault("GH_NOTIFY_RELOAD_KEY", "ctrl-r")
-	viper.SetDefault("GH_NOTIFY_MARK_READ_KEY", "ctrl-t")
-	viper.SetDefault("GH_NOTIFY_COMMENT_KEY", "ctrl-x")
-	viper.SetDefault("GH_NOTIFY_TOGGLE_KEY", "ctrl-y")
-	viper.SetDefault("GH_NOTIFY_RESIZE_PREVIEW_KEY", "btab")
 	viper.SetDefault("GH_NOTIFY_VIEW_KEY", "enter")
 	viper.SetDefault("GH_NOTIFY_TOGGLE_PREVIEW_KEY", "tab")
 	viper.SetDefault("GH_NOTIFY_TOGGLE_HELP_KEY", "?")
@@ -538,15 +477,6 @@ func initConfig() {
 
 	_ = viper.ReadInConfig()
 
-	ghNotifyMarkAllReadKey = viper.GetString("GH_NOTIFY_MARK_ALL_READ_KEY")
-	ghNotifyOpenBrowserKey = viper.GetString("GH_NOTIFY_OPEN_BROWSER_KEY")
-	ghNotifyViewDiffKey = viper.GetString("GH_NOTIFY_VIEW_DIFF_KEY")
-	ghNotifyViewPatchKey = viper.GetString("GH_NOTIFY_VIEW_PATCH_KEY")
-	ghNotifyReloadKey = viper.GetString("GH_NOTIFY_RELOAD_KEY")
-	ghNotifyMarkReadKey = viper.GetString("GH_NOTIFY_MARK_READ_KEY")
-	ghNotifyCommentKey = viper.GetString("GH_NOTIFY_COMMENT_KEY")
-	ghNotifyToggleKey = viper.GetString("GH_NOTIFY_TOGGLE_KEY")
-	ghNotifyResizePreviewKey = viper.GetString("GH_NOTIFY_RESIZE_PREVIEW_KEY")
 	ghNotifyViewKey = viper.GetString("GH_NOTIFY_VIEW_KEY")
 	ghNotifyTogglePreviewKey = viper.GetString("GH_NOTIFY_TOGGLE_PREVIEW_KEY")
 	ghNotifyToggleHelpKey = viper.GetString("GH_NOTIFY_TOGGLE_HELP_KEY")
