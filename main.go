@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/fatih/color"
 	"github.com/spf13/viper"
 )
 
@@ -24,11 +25,12 @@ const (
 	ghNotifyPerPageLimit = 50
 	finalMsg             = "All caught up!"
 	minFzfVersion        = "0.29.0"
-	colorGreen           = "\033[0;32m"
-	colorDarkGray        = "\033[0;90m"
-	colorNC              = "\033[0m"
-	colorWhiteBold       = "\033[1m"
-	exclusionString      = "XXX_BOGUS_STRING_THAT_SHOULD_NOT_EXIST_XXX"
+)
+
+var (
+	green     = color.New(color.FgGreen).SprintFunc()
+	darkGray  = color.New(color.FgHiBlack).SprintFunc()
+	whiteBold = color.New(color.FgWhite, color.Bold).SprintFunc()
 )
 
 var (
@@ -74,44 +76,44 @@ func die(msg string) {
 }
 
 func printHelpText() {
-	fmt.Printf("%sUsage%s\n  gh notify [Flags]\n\n", colorWhiteBold, colorNC)
-	fmt.Printf("%sFlags%s\n", colorWhiteBold, colorNC)
-	fmt.Printf("  %s<none>%s  show all unread notifications\n", colorGreen, colorNC)
-	fmt.Printf("  %s-a    %s  show all (read/ unread) notifications\n", colorGreen, colorNC)
-	fmt.Printf("  %s-e    %s  exclude notifications matching a string (REGEX support)\n", colorGreen, colorNC)
-	fmt.Printf("  %s-f    %s  filter notifications matching a string (REGEX support)\n", colorGreen, colorNC)
-	fmt.Printf("  %s-h    %s  show the help page\n", colorGreen, colorNC)
-	fmt.Printf("  %s-n NUM%s  max number of notifications to show\n", colorGreen, colorNC)
-	fmt.Printf("  %s-p    %s  show only participating or mentioned notifications\n", colorGreen, colorNC)
-	fmt.Printf("  %s-r    %s  mark all notifications as read\n", colorGreen, colorNC)
-	fmt.Printf("  %s-s    %s  print a static display\n", colorGreen, colorNC)
-	fmt.Printf("  %s-u URL%s  (un)subscribe a URL, useful for issues/prs of interest\n", colorGreen, colorNC)
-	fmt.Printf("  %s-w    %s  display the preview window in interactive mode\n\n", colorGreen, colorNC)
-	fmt.Printf("%sKey Bindings fzf%s\n", colorWhiteBold, colorNC)
-	fmt.Printf("  %s%s%s        toggle help\n", colorGreen, ghNotifyToggleHelpKey, colorNC)
-	fmt.Printf("  %s%s%s    view the selected notification in the 'less' pager\n", colorGreen, ghNotifyViewKey, colorNC)
-	fmt.Printf("  %s%s%s      toggle notification preview\n", colorGreen, ghNotifyTogglePreviewKey, colorNC)
-	fmt.Printf("  %s%s%s       resize the preview window\n", colorGreen, ghNotifyResizePreviewKey, colorNC)
-	fmt.Printf("  %sshift+↑↓ %s  scroll the preview up/ down\n", colorGreen, colorNC)
-	fmt.Printf("  %s%s%s   mark all displayed notifications as read and reload\n", colorGreen, ghNotifyMarkAllReadKey, colorNC)
-	fmt.Printf("  %s%s%s   browser\n", colorGreen, ghNotifyOpenBrowserKey, colorNC)
-	fmt.Printf("  %s%s%s   view diff\n", colorGreen, ghNotifyViewDiffKey, colorNC)
-	fmt.Printf("  %s%s%s   view diff in patch format\n", colorGreen, ghNotifyViewPatchKey, colorNC)
-	fmt.Printf("  %s%s%s   reload\n", colorGreen, ghNotifyReloadKey, colorNC)
-	fmt.Printf("  %s%s%s   mark the selected notification as read and reload\n", colorGreen, ghNotifyMarkReadKey, colorNC)
-	fmt.Printf("  %s%s%s   write a comment with the editor and quit\n", colorGreen, ghNotifyCommentKey, colorNC)
-	fmt.Printf("  %s%s%s   toggle the selected notification\n", colorGreen, ghNotifyToggleKey, colorNC)
-	fmt.Printf("  %sesc      %s  quit\n\n", colorGreen, colorNC)
-	fmt.Printf("%sTable Format%s\n", colorWhiteBold, colorNC)
-	fmt.Printf("  %sunread symbol%s  indicates unread status\n", colorGreen, colorNC)
-	fmt.Printf("  %stime         %s  time of last read for unread; otherwise, time of last update\n", colorGreen, colorNC)
-	fmt.Printf("  %srepo         %s  related repository\n", colorGreen, colorNC)
-	fmt.Printf("  %stype         %s  notification type\n", colorGreen, colorNC)
-	fmt.Printf("  %snumber       %s  associated number\n", colorGreen, colorNC)
-	fmt.Printf("  %sreason       %s  trigger reason\n", colorGreen, colorNC)
-	fmt.Printf("  %stitle        %s  notification title\n\n", colorGreen, colorNC)
-	fmt.Printf("%sExample%s\n", colorWhiteBold, colorNC)
-	fmt.Printf("    %s# Display the last 20 notifications%s\n    gh notify -an 20\n", colorDarkGray, colorNC)
+	fmt.Printf("%sUsage%s\n  gh notify [Flags]\n\n", whiteBold(""), "")
+	fmt.Printf("%sFlags%s\n", whiteBold(""), "")
+	fmt.Printf("  %s<none>%s  show all unread notifications\n", green(""), "")
+	fmt.Printf("  %s-a    %s  show all (read/ unread) notifications\n", green(""), "")
+	fmt.Printf("  %s-e    %s  exclude notifications matching a string (REGEX support)\n", green(""), "")
+	fmt.Printf("  %s-f    %s  filter notifications matching a string (REGEX support)\n", green(""), "")
+	fmt.Printf("  %s-h    %s  show the help page\n", green(""), "")
+	fmt.Printf("  %s-n NUM%s  max number of notifications to show\n", green(""), "")
+	fmt.Printf("  %s-p    %s  show only participating or mentioned notifications\n", green(""), "")
+	fmt.Printf("  %s-r    %s  mark all notifications as read\n", green(""), "")
+	fmt.Printf("  %s-s    %s  print a static display\n", green(""), "")
+	fmt.Printf("  %s-u URL%s  (un)subscribe a URL, useful for issues/prs of interest\n", green(""), "")
+	fmt.Printf("  %s-w    %s  display the preview window in interactive mode\n\n", green(""), "")
+	fmt.Printf("%sKey Bindings fzf%s\n", whiteBold(""), "")
+	fmt.Printf("  %s%s%s        toggle help\n", green(""), ghNotifyToggleHelpKey, "")
+	fmt.Printf("  %s%s%s    view the selected notification in the 'less' pager\n", green(""), ghNotifyViewKey, "")
+	fmt.Printf("  %s%s%s      toggle notification preview\n", green(""), ghNotifyTogglePreviewKey, "")
+	fmt.Printf("  %s%s%s       resize the preview window\n", green(""), ghNotifyResizePreviewKey, "")
+	fmt.Printf("  %sshift+↑↓ %s  scroll the preview up/ down\n", green(""), "")
+	fmt.Printf("  %s%s%s   mark all displayed notifications as read and reload\n", green(""), ghNotifyMarkAllReadKey, "")
+	fmt.Printf("  %s%s%s   browser\n", green(""), ghNotifyOpenBrowserKey, "")
+	fmt.Printf("  %s%s%s   view diff\n", green(""), ghNotifyViewDiffKey, "")
+	fmt.Printf("  %s%s%s   view diff in patch format\n", green(""), ghNotifyViewPatchKey, "")
+	fmt.Printf("  %s%s%s   reload\n", green(""), ghNotifyReloadKey, "")
+	fmt.Printf("  %s%s%s   mark the selected notification as read and reload\n", green(""), ghNotifyMarkReadKey, "")
+	fmt.Printf("  %s%s%s   write a comment with the editor and quit\n", green(""), ghNotifyCommentKey, "")
+	fmt.Printf("  %s%s%s   toggle the selected notification\n", green(""), ghNotifyToggleKey, "")
+	fmt.Printf("  %sesc      %s  quit\n\n", green(""), "")
+	fmt.Printf("%sTable Format%s\n", whiteBold(""), "")
+	fmt.Printf("  %sunread symbol%s  indicates unread status\n", green(""), "")
+	fmt.Printf("  %stime         %s  time of last read for unread; otherwise, time of last update\n", green(""), "")
+	fmt.Printf("  %srepo         %s  related repository\n", green(""), "")
+	fmt.Printf("  %stype         %s  notification type\n", green(""), "")
+	fmt.Printf("  %snumber       %s  associated number\n", green(""), "")
+	fmt.Printf("  %sreason       %s  trigger reason\n", green(""), "")
+	fmt.Printf("  %stitle        %s  notification title\n\n", green(""), "")
+	fmt.Printf("%sExample%s\n", whiteBold(""), "")
+	fmt.Printf("    %s# Display the last 20 notifications%s\n    gh notify -an 20\n", darkGray(""), "")
 }
 
 func checkVersion(tool, threshold string) {
