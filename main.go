@@ -412,9 +412,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	var b strings.Builder
-	b.WriteString(headerStyle.Render("GitHub Notifications"))
-	b.WriteString("\n")
-	// Column widths
+
+	// Sticky header block
+	headerLines := []string{
+		headerStyle.Render("GitHub Notifications"),
+	}
 	maxIdx := len(m.notifications)
 	idxDigits := len(fmt.Sprintf("%d", maxIdx))
 	idxWidth := idxDigits + 2 // cursor + digits
@@ -424,7 +426,6 @@ func (m Model) View() string {
 	stateWidth := 7
 	titleWidth := max(m.width-idxWidth-repoWidth-typeWidth-reasonWidth-stateWidth-10, 8)
 
-	// Header
 	header := fmt.Sprintf("%-*s %-*s%-*s%-*s%-*s%-*s",
 		idxWidth, "Idx",
 		repoWidth, "Repo",
@@ -433,10 +434,30 @@ func (m Model) View() string {
 		titleWidth, "Title",
 		stateWidth, "State",
 	)
-	b.WriteString(headerStyle.Render(header))
-	b.WriteString("\n")
+	headerLines = append(headerLines, headerStyle.Render(header))
+	stickyHeader := strings.Join(headerLines, "\n") + "\n"
 
-	for i, n := range m.notifications {
+	b.WriteString(stickyHeader)
+
+	// Calculate available height for entries
+	entriesHeight := m.height - len(headerLines) - 1
+	start := 0
+	end := len(m.notifications)
+	if entriesHeight > 0 && end > entriesHeight {
+		if m.cursor < entriesHeight/2 {
+			start = 0
+			end = entriesHeight
+		} else if m.cursor > end-entriesHeight/2 {
+			start = end - entriesHeight
+			end = end
+		} else {
+			start = m.cursor - entriesHeight/2
+			end = start + entriesHeight
+		}
+	}
+
+	for i := start; i < end; i++ {
+		n := m.notifications[i]
 		cursor := "  "
 		if m.cursor == i {
 			cursor = "▶ "
