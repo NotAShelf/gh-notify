@@ -374,7 +374,7 @@ var (
 	readStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	headerStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true).Underline(true)
 	previewStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("236")).Padding(1, 2)
-	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Background(lipgloss.Color("0")).Padding(1, 2)
+	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Background(lipgloss.Color("0"))
 )
 
 func (m Model) Init() tea.Cmd {
@@ -500,7 +500,16 @@ func (m Model) View() string {
 
 	if m.showHelp {
 		help := "↑/↓: Move  Enter/Tab: Preview  ?: Toggle Help  q/esc: Quit"
-		b.WriteString(helpStyle.Render(help))
+		helpLine := helpStyle.Render(help)
+		lines := strings.Split(b.String(), "\n")
+		if len(lines) > m.height-1 {
+			lines = lines[:m.height-1]
+		}
+		for len(lines) < m.height-1 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, helpLine)
+		return strings.Join(lines, "\n")
 	}
 
 	return b.String()
