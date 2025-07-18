@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -31,19 +32,19 @@ const (
 )
 
 var (
-	ghNotifyMarkAllReadKey   = getenvOr("GH_NOTIFY_MARK_ALL_READ_KEY", "ctrl-a")
-	ghNotifyOpenBrowserKey   = getenvOr("GH_NOTIFY_OPEN_BROWSER_KEY", "ctrl-b")
-	ghNotifyViewDiffKey      = getenvOr("GH_NOTIFY_VIEW_DIFF_KEY", "ctrl-d")
-	ghNotifyViewPatchKey     = getenvOr("GH_NOTIFY_VIEW_PATCH_KEY", "ctrl-p")
-	ghNotifyReloadKey        = getenvOr("GH_NOTIFY_RELOAD_KEY", "ctrl-r")
-	ghNotifyMarkReadKey      = getenvOr("GH_NOTIFY_MARK_READ_KEY", "ctrl-t")
-	ghNotifyCommentKey       = getenvOr("GH_NOTIFY_COMMENT_KEY", "ctrl-x")
-	ghNotifyToggleKey        = getenvOr("GH_NOTIFY_TOGGLE_KEY", "ctrl-y")
-	ghNotifyResizePreviewKey = getenvOr("GH_NOTIFY_RESIZE_PREVIEW_KEY", "btab")
-	ghNotifyViewKey          = getenvOr("GH_NOTIFY_VIEW_KEY", "enter")
-	ghNotifyTogglePreviewKey = getenvOr("GH_NOTIFY_TOGGLE_PREVIEW_KEY", "tab")
-	ghNotifyToggleHelpKey    = getenvOr("GH_NOTIFY_TOGGLE_HELP_KEY", "?")
-	ghNotifyDebugMode        = getenvOr("GH_NOTIFY_DEBUG_MODE", "false") == "true"
+	ghNotifyMarkAllReadKey   string
+	ghNotifyOpenBrowserKey   string
+	ghNotifyViewDiffKey      string
+	ghNotifyViewPatchKey     string
+	ghNotifyReloadKey        string
+	ghNotifyMarkReadKey      string
+	ghNotifyCommentKey       string
+	ghNotifyToggleKey        string
+	ghNotifyResizePreviewKey string
+	ghNotifyViewKey          string
+	ghNotifyTogglePreviewKey string
+	ghNotifyToggleHelpKey    string
+	ghNotifyDebugMode        bool
 )
 
 type Notification struct {
@@ -65,13 +66,6 @@ type Notification struct {
 		URL              string `json:"url"`
 		LatestCommentURL string `json:"latest_comment_url"`
 	} `json:"subject"`
-}
-
-func getenvOr(key, def string) string {
-	if val, ok := os.LookupEnv(key); ok {
-		return val
-	}
-	return def
 }
 
 func die(msg string) {
@@ -295,6 +289,8 @@ func markAllRead(isoTime string) error {
 }
 
 func main() {
+	initConfig()
+
 	var (
 		exclusion             string
 		filter                string
@@ -302,10 +298,9 @@ func main() {
 		updateSubscriptionURL string
 		onlyParticipating     bool
 		includeAll            bool
-		// previewWindowVisibility string
-		printStatic bool
-		markRead    bool
-		showHelp    bool
+		printStatic           bool
+		markRead              bool
+		showHelp              bool
 	)
 	flag.StringVar(&exclusion, "e", "", "")
 	flag.StringVar(&filter, "f", "", "")
@@ -404,4 +399,42 @@ func runFzf(notifs string) {
 	if err := cmd.Run(); err != nil && !errors.Is(err, os.ErrClosed) {
 		die(fmt.Sprintf("fzf error: %v", err))
 	}
+}
+
+func initConfig() {
+	viper.SetConfigName("gh-notify")
+	viper.SetConfigType("toml")
+	viper.AddConfigPath("$HOME/.config/gh-notify")
+	viper.AutomaticEnv()
+
+	// Defaults
+	viper.SetDefault("GH_NOTIFY_MARK_ALL_READ_KEY", "ctrl-a")
+	viper.SetDefault("GH_NOTIFY_OPEN_BROWSER_KEY", "ctrl-b")
+	viper.SetDefault("GH_NOTIFY_VIEW_DIFF_KEY", "ctrl-d")
+	viper.SetDefault("GH_NOTIFY_VIEW_PATCH_KEY", "ctrl-p")
+	viper.SetDefault("GH_NOTIFY_RELOAD_KEY", "ctrl-r")
+	viper.SetDefault("GH_NOTIFY_MARK_READ_KEY", "ctrl-t")
+	viper.SetDefault("GH_NOTIFY_COMMENT_KEY", "ctrl-x")
+	viper.SetDefault("GH_NOTIFY_TOGGLE_KEY", "ctrl-y")
+	viper.SetDefault("GH_NOTIFY_RESIZE_PREVIEW_KEY", "btab")
+	viper.SetDefault("GH_NOTIFY_VIEW_KEY", "enter")
+	viper.SetDefault("GH_NOTIFY_TOGGLE_PREVIEW_KEY", "tab")
+	viper.SetDefault("GH_NOTIFY_TOGGLE_HELP_KEY", "?")
+	viper.SetDefault("GH_NOTIFY_DEBUG_MODE", false)
+
+	_ = viper.ReadInConfig()
+
+	ghNotifyMarkAllReadKey = viper.GetString("GH_NOTIFY_MARK_ALL_READ_KEY")
+	ghNotifyOpenBrowserKey = viper.GetString("GH_NOTIFY_OPEN_BROWSER_KEY")
+	ghNotifyViewDiffKey = viper.GetString("GH_NOTIFY_VIEW_DIFF_KEY")
+	ghNotifyViewPatchKey = viper.GetString("GH_NOTIFY_VIEW_PATCH_KEY")
+	ghNotifyReloadKey = viper.GetString("GH_NOTIFY_RELOAD_KEY")
+	ghNotifyMarkReadKey = viper.GetString("GH_NOTIFY_MARK_READ_KEY")
+	ghNotifyCommentKey = viper.GetString("GH_NOTIFY_COMMENT_KEY")
+	ghNotifyToggleKey = viper.GetString("GH_NOTIFY_TOGGLE_KEY")
+	ghNotifyResizePreviewKey = viper.GetString("GH_NOTIFY_RESIZE_PREVIEW_KEY")
+	ghNotifyViewKey = viper.GetString("GH_NOTIFY_VIEW_KEY")
+	ghNotifyTogglePreviewKey = viper.GetString("GH_NOTIFY_TOGGLE_PREVIEW_KEY")
+	ghNotifyToggleHelpKey = viper.GetString("GH_NOTIFY_TOGGLE_HELP_KEY")
+	ghNotifyDebugMode = viper.GetBool("GH_NOTIFY_DEBUG_MODE")
 }
