@@ -1,16 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -133,34 +131,6 @@ func printHelpText(cmd *cobra.Command) {
 	fmt.Printf("    %s# Display the last 20 notifications%s\n    gh-notify --all --num 20\n", darkGray(""), "")
 }
 
-func checkVersion(tool, threshold string) {
-	out, err := exec.Command(tool, "--version").Output()
-	if err != nil {
-		die(fmt.Sprintf("Your '%s' version is insufficient. The minimum required version is '%s'.", tool, threshold))
-	}
-	re := regexp.MustCompile(`[0-9]+(\.[0-9]+)*`)
-	userVersion := re.FindString(string(out))
-	verParts := strings.Split(userVersion, ".")
-	threshParts := strings.Split(threshold, ".")
-	for i := range threshParts {
-		user, _ := strconv.Atoi(getOrDefault(verParts, i, "0"))
-		thresh, _ := strconv.Atoi(getOrDefault(threshParts, i, "0"))
-		if user < thresh {
-			die(fmt.Sprintf("Your '%s' version '%s' is insufficient. The minimum required version is '%s'.", tool, userVersion, threshold))
-		}
-		if user > thresh {
-			break
-		}
-	}
-}
-
-func getOrDefault(parts []string, idx int, def string) string {
-	if idx < len(parts) {
-		return parts[idx]
-	}
-	return def
-}
-
 func ghRestApiClient() *api.RESTClient {
 	client, err := api.NewRESTClient(api.ClientOptions{
 		Headers: map[string]string{
@@ -184,62 +154,6 @@ func getNotifs(pageNum int, onlyParticipating, includeAll bool) ([]Notification,
 	return notifs, nil
 }
 
-func printNotifs(numNotifications int, onlyParticipating, includeAll bool, exclusion, filter string) (string, error) {
-	pageNum := 1
-	fetchedCount := 0
-	var allNotifs []Notification
-	for {
-		notifs, err := getNotifs(pageNum, onlyParticipating, includeAll)
-		if err != nil {
-			return "", err
-		}
-		if len(notifs) == 0 {
-			break
-		}
-		pageSize := min(numNotifications-fetchedCount, ghNotifyPerPageLimit)
-		if pageSize < len(notifs) {
-			notifs = notifs[:pageSize]
-		}
-		allNotifs = append(allNotifs, notifs...)
-		fetchedCount += len(notifs)
-		if fetchedCount == numNotifications || len(notifs) < ghNotifyPerPageLimit {
-			break
-		}
-		pageNum++
-	}
-	var buf bytes.Buffer
-	for _, n := range allNotifs {
-		if exclusion != "" && strings.Contains(n.Subject.Title, exclusion) {
-			continue
-		}
-		if filter != "" && !strings.Contains(n.Subject.Title, filter) {
-			continue
-		}
-		updatedShort := shortDate(n.UpdatedAt)
-		iso8601 := isoTime()
-		threadState := "READ"
-		if n.Unread {
-			threadState = "UNREAD"
-		}
-		commentURL := lastPathComponent(n.Subject.LatestCommentURL)
-		repoFullName := n.Repository.FullName
-		unreadSymbol := "●"
-		if !n.Unread {
-			unreadSymbol = " "
-		}
-		ownerAbbr := abbreviate(n.Repository.Owner.Login, 10)
-		nameAbbr := abbreviate(n.Repository.Name, 13)
-		typ := n.Subject.Type
-		url := n.Subject.URL
-		reason := n.Reason
-		title := n.Subject.Title
-		buf.WriteString(fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s/%s\t%s\t%s\t%s\t%s\n",
-			updatedShort, iso8601, n.ID, threadState, commentURL, repoFullName,
-			unreadSymbol, ownerAbbr, nameAbbr, typ, url, reason, title))
-	}
-	return buf.String(), nil
-}
-
 func shortDate(dt string) string {
 	t, err := time.Parse(time.RFC3339, dt)
 	if err != nil {
@@ -261,10 +175,10 @@ func lastPathComponent(url string) string {
 }
 
 func abbreviate(s string, max int) string {
-	if len(s) > max {
-		return s[:max-1] + "…"
+	if max <= 1 || len(s) <= max {
+		return s
 	}
-	return s
+	return s[:max-1] + "…"
 }
 
 func timeAgo(lastRead, updated string, unread bool) string {
@@ -296,6 +210,13 @@ func min(a, b int) int {
 	return b
 }
 
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func markAllRead(isoTime string) error {
 	client := ghRestApiClient()
 	body := map[string]interface{}{
@@ -318,7 +239,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "gh-notify",
 		Short: "GitHub notifications CLI",
-		Long:  "A CLI for managing GitHub notifications.",
+		Long:  "GitHub CLI extension to display GitHub notifications",
 		Run: func(cmd *cobra.Command, args []string) {
 			if _, err := exec.LookPath("gh"); err != nil {
 				die("install 'gh'")
@@ -335,31 +256,44 @@ func main() {
 				os.Exit(0)
 			}
 
-			if !printStatic {
-				if _, err := exec.LookPath("fzf"); err != nil {
-					die("install 'fzf' or use the --static flag")
-				}
-				checkVersion("fzf", minFzfVersion)
-			}
-
-			notifs, err := printNotifs(numNotifications, onlyParticipating, includeAll, exclusion, filter)
+			notifs, err := getNotifications(numNotifications, onlyParticipating, includeAll, exclusion, filter)
 			if err != nil {
 				die(err.Error())
 			}
-			if notifs == "" {
+			if len(notifs) == 0 {
 				fmt.Println(finalMsg)
 				os.Exit(0)
 			}
 			if printStatic {
-				for _, line := range strings.Split(notifs, "\n") {
-					cols := strings.Split(line, "\t")
-					if len(cols) > 6 {
-						fmt.Println(strings.Join(cols[6:], "\t"))
-					}
+				for _, n := range notifs {
+					fmt.Printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s/%s\t%s\t%s\t%s\t%s\n",
+						shortDate(n.UpdatedAt), isoTime(), n.ID,
+						func() string {
+							if n.Unread {
+								return "UNREAD"
+							} else {
+								return "READ"
+							}
+						}(),
+
+						lastPathComponent(n.Subject.LatestCommentURL), n.Repository.FullName,
+						func() string {
+							if n.Unread {
+								return "●"
+							} else {
+								return " "
+							}
+						}(),
+
+						abbreviate(n.Repository.Owner.Login, 10), abbreviate(n.Repository.Name, 13),
+						n.Subject.Type, n.Subject.URL, n.Reason, n.Subject.Title)
 				}
 				os.Exit(0)
 			}
-			runFzf(notifs)
+			p := tea.NewProgram(NewModel(notifs), tea.WithAltScreen())
+			if _, err := p.Run(); err != nil {
+				die(fmt.Sprintf("Bubbletea error: %v", err))
+			}
 		},
 	}
 
@@ -381,44 +315,174 @@ func main() {
 	}
 }
 
-func runFzf(notifs string) {
-	cmd := exec.Command("fzf",
-		"--ansi",
-		"--bind", fmt.Sprintf("%s:change-preview-window(75%%:nohidden|75%%:down:nohidden:border-top|nohidden)", ghNotifyResizePreviewKey),
-		"--bind", "change:first",
-		"--bind", fmt.Sprintf("%s:select-all+reload:echo reload", ghNotifyMarkAllReadKey),
-		"--bind", fmt.Sprintf("%s:execute-silent:echo browser", ghNotifyOpenBrowserKey),
-		"--bind", fmt.Sprintf("%s:toggle-preview+change-preview:echo diff", ghNotifyViewDiffKey),
-		"--bind", fmt.Sprintf("%s:toggle-preview+change-preview:echo patch", ghNotifyViewPatchKey),
-		"--bind", fmt.Sprintf("%s:reload:echo reload", ghNotifyReloadKey),
-		"--bind", fmt.Sprintf("%s:execute-silent:echo mark", ghNotifyMarkReadKey),
-		"--bind", fmt.Sprintf("%s:toggle+down", ghNotifyToggleKey),
-		"--bind", fmt.Sprintf("%s:execute:echo pager", ghNotifyViewKey),
-		"--bind", fmt.Sprintf("%s:toggle-preview+change-preview:echo preview", ghNotifyTogglePreviewKey),
-		"--bind", fmt.Sprintf("%s:toggle-preview+change-preview:echo help", ghNotifyToggleHelpKey),
-		"--border", "horizontal",
-		"--color", "border:dim",
-		"--color", "header:green:italic:dim",
-		"--color", "prompt:80,info:40",
-		"--delimiter", "\\s+",
-		"--expect", fmt.Sprintf("esc,%s", ghNotifyCommentKey),
-		"--header", fmt.Sprintf("%s help · esc quit", ghNotifyToggleHelpKey),
-		"--info=inline",
-		"--multi",
-		"--pointer=▶",
-		"--preview", "echo preview",
-		"--preview-window", "default:wrap:hidden:60%:right:border-left",
-		"--no-print-query",
-		"--prompt", "GitHub Notifications > ",
-		"--reverse",
-		"--with-nth", "6..",
-	)
-	cmd.Stdin = strings.NewReader(notifs)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil && !errors.Is(err, os.ErrClosed) {
-		die(fmt.Sprintf("fzf error: %v", err))
+// getNotifications fetches and filters notifications for Bubbletea model
+func getNotifications(numNotifications int, onlyParticipating, includeAll bool, exclusion, filter string) ([]Notification, error) {
+	pageNum := 1
+	fetchedCount := 0
+	var allNotifs []Notification
+	for {
+		notifs, err := getNotifs(pageNum, onlyParticipating, includeAll)
+		if err != nil {
+			return nil, err
+		}
+		if len(notifs) == 0 {
+			break
+		}
+		pageSize := min(numNotifications-fetchedCount, ghNotifyPerPageLimit)
+		if pageSize < len(notifs) {
+			notifs = notifs[:pageSize]
+		}
+		for _, n := range notifs {
+			if exclusion != "" && strings.Contains(n.Subject.Title, exclusion) {
+				continue
+			}
+			if filter != "" && !strings.Contains(n.Subject.Title, filter) {
+				continue
+			}
+			allNotifs = append(allNotifs, n)
+		}
+		fetchedCount += len(notifs)
+		if fetchedCount == numNotifications || len(notifs) < ghNotifyPerPageLimit {
+			break
+		}
+		pageNum++
 	}
+	return allNotifs, nil
+}
+
+type Model struct {
+	notifications []Notification
+	cursor        int
+	width         int
+	height        int
+	showPreview   bool
+	showHelp      bool
+}
+
+func NewModel(notifs []Notification) Model {
+	return Model{
+		notifications: notifs,
+		cursor:        0,
+		showPreview:   false,
+		showHelp:      false,
+	}
+}
+
+var (
+	selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Background(lipgloss.Color("57")).Bold(true)
+	unreadStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+	readStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	headerStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Bold(true).Underline(true)
+	previewStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("236")).Padding(1, 2)
+	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Background(lipgloss.Color("0")).Padding(1, 2)
+)
+
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "esc", "q":
+			return m, tea.Quit
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(m.notifications)-1 {
+				m.cursor++
+			}
+		case "tab":
+			m.showPreview = !m.showPreview
+		case "?":
+			m.showHelp = !m.showHelp
+		case "enter":
+			m.showPreview = true
+		}
+	}
+	return m, nil
+}
+
+func (m Model) View() string {
+	var b strings.Builder
+	b.WriteString(headerStyle.Render("GitHub Notifications"))
+	b.WriteString("\n")
+	// Column widths
+	maxIdx := len(m.notifications)
+	idxDigits := len(fmt.Sprintf("%d", maxIdx))
+	idxWidth := idxDigits + 2 // cursor + digits
+	repoWidth := 22
+	typeWidth := 12
+	reasonWidth := 24
+	stateWidth := 7
+	titleWidth := max(m.width-idxWidth-repoWidth-typeWidth-reasonWidth-stateWidth-10, 8)
+
+	// Header
+	header := fmt.Sprintf("%-*s %-*s%-*s%-*s%-*s%-*s",
+		idxWidth, "Idx",
+		repoWidth, "Repo",
+		typeWidth, "Type",
+		reasonWidth, "Reason",
+		titleWidth, "Title",
+		stateWidth, "State",
+	)
+	b.WriteString(headerStyle.Render(header))
+	b.WriteString("\n")
+
+	for i, n := range m.notifications {
+		cursor := "  "
+		if m.cursor == i {
+			cursor = "▶ "
+		}
+		style := readStyle
+		state := "READ"
+		if n.Unread {
+			style = unreadStyle
+			state = "UNREAD"
+		}
+		repo := abbreviate(n.Repository.FullName, repoWidth)
+		typ := abbreviate(n.Subject.Type, typeWidth)
+		reason := abbreviate(n.Reason, reasonWidth)
+		title := abbreviate(n.Subject.Title, titleWidth)
+		row := fmt.Sprintf("%s%-*d%-*s%-*s%-*s%-*s%-*s",
+			cursor,
+			idxWidth-1, i+1,
+			repoWidth, repo,
+			typeWidth, typ,
+			reasonWidth, reason,
+			titleWidth, title,
+			stateWidth, state,
+		)
+		if m.cursor == i {
+			b.WriteString(selectedStyle.Render(row))
+		} else {
+			b.WriteString(style.Render(row))
+		}
+		b.WriteString("\n")
+	}
+
+	if m.showPreview && len(m.notifications) > 0 {
+		n := m.notifications[m.cursor]
+		preview := fmt.Sprintf(
+			"Title: %s\nRepo: %s\nType: %s\nReason: %s\nURL: %s\nLast Updated: %s\nUnread: %v\n",
+			n.Subject.Title, n.Repository.FullName, n.Subject.Type, n.Reason, n.Subject.URL, n.UpdatedAt, n.Unread,
+		)
+		b.WriteString(previewStyle.Render(preview))
+	}
+
+	if m.showHelp {
+		help := "↑/↓: Move  Enter/Tab: Preview  ?: Toggle Help  q/esc: Quit"
+		b.WriteString(helpStyle.Render(help))
+	}
+
+	return b.String()
 }
 
 func initConfig() {
