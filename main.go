@@ -290,7 +290,7 @@ func main() {
 				}
 				os.Exit(0)
 			}
-			p := tea.NewProgram(NewModel(notifs))
+			p := tea.NewProgram(NewModel(notifs), tea.WithAltScreen())
 			if _, err := p.Run(); err != nil {
 				die(fmt.Sprintf("Bubbletea error: %v", err))
 			}
