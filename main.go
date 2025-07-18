@@ -414,9 +414,28 @@ func (m Model) View() string {
 	var b strings.Builder
 	b.WriteString(headerStyle.Render("GitHub Notifications"))
 	b.WriteString("\n")
-	// TODO: don't hardcode the widths.
-	b.WriteString(headerStyle.Render("Idx  Repo                  Type        Reason      Title" + strings.Repeat(" ", max(m.width-70, 0)) + "State"))
+	// Column widths
+	maxIdx := len(m.notifications)
+	idxDigits := len(fmt.Sprintf("%d", maxIdx))
+	idxWidth := idxDigits + 2 // cursor + digits
+	repoWidth := 22
+	typeWidth := 12
+	reasonWidth := 24
+	stateWidth := 7
+	titleWidth := max(m.width-idxWidth-repoWidth-typeWidth-reasonWidth-stateWidth-10, 8)
+
+	// Header
+	header := fmt.Sprintf("%-*s %-*s%-*s%-*s%-*s%-*s",
+		idxWidth, "Idx",
+		repoWidth, "Repo",
+		typeWidth, "Type",
+		reasonWidth, "Reason",
+		titleWidth, "Title",
+		stateWidth, "State",
+	)
+	b.WriteString(headerStyle.Render(header))
 	b.WriteString("\n")
+
 	for i, n := range m.notifications {
 		cursor := "  "
 		if m.cursor == i {
@@ -428,12 +447,19 @@ func (m Model) View() string {
 			style = unreadStyle
 			state = "UNREAD"
 		}
-		repo := abbreviate(n.Repository.FullName, 22)
-		typ := abbreviate(n.Subject.Type, 12)
-		reason := abbreviate(n.Reason, 12)
-		titleWidth := max(m.width-70, 8)
+		repo := abbreviate(n.Repository.FullName, repoWidth)
+		typ := abbreviate(n.Subject.Type, typeWidth)
+		reason := abbreviate(n.Reason, reasonWidth)
 		title := abbreviate(n.Subject.Title, titleWidth)
-		row := fmt.Sprintf("%s%2d   %-22s %-12s %-12s %-*s %s", cursor, i+1, repo, typ, reason, titleWidth, title, state)
+		row := fmt.Sprintf("%s%-*d%-*s%-*s%-*s%-*s%-*s",
+			cursor,
+			idxWidth-1, i+1,
+			repoWidth, repo,
+			typeWidth, typ,
+			reasonWidth, reason,
+			titleWidth, title,
+			stateWidth, state,
+		)
 		if m.cursor == i {
 			b.WriteString(selectedStyle.Render(row))
 		} else {
