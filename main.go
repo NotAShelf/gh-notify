@@ -34,19 +34,19 @@ var (
 )
 
 var (
-	ghNotifyMarkAllReadKey   string
-	ghNotifyOpenBrowserKey   string
-	ghNotifyViewDiffKey      string
-	ghNotifyViewPatchKey     string
-	ghNotifyReloadKey        string
-	ghNotifyMarkReadKey      string
-	ghNotifyCommentKey       string
-	ghNotifyToggleKey        string
-	ghNotifyResizePreviewKey string
-	ghNotifyViewKey          string
-	ghNotifyTogglePreviewKey string
-	ghNotifyToggleHelpKey    string
-	ghNotifyDebugMode        bool
+	ghNotifyMarkAllReadKey,
+	ghNotifyOpenBrowserKey,
+	ghNotifyViewDiffKey,
+	ghNotifyViewPatchKey,
+	ghNotifyReloadKey,
+	ghNotifyMarkReadKey,
+	ghNotifyCommentKey,
+	ghNotifyToggleKey,
+	ghNotifyResizePreviewKey,
+	ghNotifyViewKey,
+	ghNotifyTogglePreviewKey,
+	ghNotifyToggleHelpKey string
+	ghNotifyDebugMode bool
 )
 
 type Notification struct {
@@ -130,7 +130,8 @@ func checkVersion(tool, threshold string) {
 		thresh, _ := strconv.Atoi(getOrDefault(threshParts, i, "0"))
 		if user < thresh {
 			die(fmt.Sprintf("Your '%s' version '%s' is insufficient. The minimum required version is '%s'.", tool, userVersion, threshold))
-		} else if user > thresh {
+		}
+		if user > thresh {
 			break
 		}
 	}
@@ -157,13 +158,10 @@ func ghRestApiClient() *api.RESTClient {
 
 func getNotifs(pageNum int, onlyParticipating, includeAll bool) ([]Notification, error) {
 	client := ghRestApiClient()
-
 	var notifs []Notification
-	// go-gh expects params to be encoded in the endpoint string
 	endpoint := fmt.Sprintf("notifications?per_page=%d&page=%d&participating=%t&all=%t",
 		ghNotifyPerPageLimit, pageNum, onlyParticipating, includeAll)
-	err := client.Get(endpoint, &notifs)
-	if err != nil {
+	if err := client.Get(endpoint, &notifs); err != nil {
 		return nil, err
 	}
 	return notifs, nil
@@ -294,15 +292,10 @@ func main() {
 	initConfig()
 
 	var (
-		exclusion             string
-		filter                string
-		numNotifications      int
-		updateSubscriptionURL string
-		onlyParticipating     bool
-		includeAll            bool
-		printStatic           bool
-		markRead              bool
-		showHelp              bool
+		exclusion, filter, updateSubscriptionURL string
+		numNotifications                         int
+		onlyParticipating, includeAll            bool
+		printStatic, markRead, showHelp          bool
 	)
 	flag.StringVar(&exclusion, "e", "", "")
 	flag.StringVar(&filter, "f", "", "")
@@ -325,14 +318,13 @@ func main() {
 	}
 
 	if markRead {
-		if exclusion == "" && filter == "" {
-			if err := markAllRead(isoTime()); err != nil {
-				die("Failed to mark notifications as read.")
-			}
-			fmt.Println("All notifications have been marked as read.")
-		} else {
+		if exclusion != "" || filter != "" {
 			die("Can't mark all notifications as read when either the '-e' or '-f' flag was used, as it would also mark notifications as read that are filtered out.")
 		}
+		if err := markAllRead(isoTime()); err != nil {
+			die("Failed to mark notifications as read.")
+		}
+		fmt.Println("All notifications have been marked as read.")
 		os.Exit(0)
 	}
 
