@@ -66,14 +66,28 @@ by creating a config file named `gh-notify.toml` in
 
 Example `gh-notify.toml`:
 
-```kdl
+```toml
 GH_NOTIFY_VIEW_KEY = "enter"
 GH_NOTIFY_TOGGLE_PREVIEW_KEY = "tab"
 GH_NOTIFY_TOGGLE_HELP_KEY = "?"
 GH_NOTIFY_DEBUG_MODE = false
+GH_NOTIFY_CACHE_ENABLED = true
+GH_NOTIFY_CACHE_DURATION = "5m"
+GH_NOTIFY_VERBOSE = false
 ```
 
 Environment variables always override config file values.
+
+#### Cache
+
+- `GH_NOTIFY_CACHE_ENABLED`: Enable/disable API response caching (default: true)
+- `GH_NOTIFY_CACHE_DURATION`: Cache duration as Go time string (default: "5m",
+  e.g. "10m", "1h")
+
+#### Verbose
+
+- `GH_NOTIFY_VERBOSE`: Enable verbose logging for cache/API/debug (default:
+  false)
 
 ### Key Bindings
 
