@@ -7,6 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
+	"path/filepath"
+	"sync"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -27,6 +31,13 @@ const (
 )
 
 var (
+	cacheEnabled  bool
+	cacheDuration time.Duration
+	cacheDir      string
+	cacheMutex    sync.Mutex
+)
+
+var (
 	green     = color.New(color.FgGreen).SprintFunc()
 	darkGray  = color.New(color.FgHiBlack).SprintFunc()
 	whiteBold = color.New(color.FgWhite, color.Bold).SprintFunc()
@@ -37,6 +48,7 @@ var (
 	ghNotifyTogglePreviewKey,
 	ghNotifyToggleHelpKey string
 	ghNotifyDebugMode bool
+	ghNotifyVerbose   bool
 )
 
 type Notification struct {
@@ -114,14 +126,117 @@ func ghRestApiClient() *api.RESTClient {
 	return client
 }
 
+func cachePath(key string) string {
+	return filepath.Join(cacheDir, key+".json")
+}
+
+func cacheGet(key string, v any) bool {
+	if !cacheEnabled {
+		if ghNotifyVerbose {
+			fmt.Fprintf(os.Stderr, "[cache] disabled, skipping cache for key: %s\n", key)
+		}
+		return false
+	}
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+	path := cachePath(key)
+	f, err := os.Open(path)
+	if err != nil {
+		if ghNotifyVerbose {
+			fmt.Fprintf(os.Stderr, "[cache] miss (file not found) for key: %s\n", key)
+		}
+		return false
+	}
+	defer f.Close()
+	var entry struct {
+		Timestamp int64           `json:"timestamp"`
+		Data      json.RawMessage `json:"data"`
+	}
+	if err := json.NewDecoder(f).Decode(&entry); err != nil {
+		if ghNotifyVerbose {
+			fmt.Fprintf(os.Stderr, "[cache] miss (decode error) for key: %s: %v\n", key, err)
+		}
+		return false
+	}
+	if time.Since(time.Unix(entry.Timestamp, 0)) > cacheDuration {
+		_ = os.Remove(path)
+		if ghNotifyVerbose {
+			fmt.Fprintf(os.Stderr, "[cache] expired for key: %s\n", key)
+		}
+		return false
+	}
+	if ghNotifyVerbose {
+		fmt.Fprintf(os.Stderr, "[cache] hit for key: %s\n", key)
+	}
+	return json.Unmarshal(entry.Data, v) == nil
+}
+
+func cacheSet(key string, v any) {
+	if !cacheEnabled {
+		if ghNotifyVerbose {
+			fmt.Fprintf(os.Stderr, "[cache] disabled, not storing key: %s\n", key)
+		}
+		return
+	}
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+	path := cachePath(key)
+	data, err := json.Marshal(v)
+	if err != nil {
+		if ghNotifyVerbose {
+			fmt.Fprintf(os.Stderr, "[cache] marshal error for key: %s: %v\n", key, err)
+		}
+		return
+	}
+	entry := struct {
+		Timestamp int64           `json:"timestamp"`
+		Data      json.RawMessage `json:"data"`
+	}{
+		Timestamp: time.Now().Unix(),
+		Data:      data,
+	}
+	tmpPath := path + ".tmp"
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		if ghNotifyVerbose {
+			fmt.Fprintf(os.Stderr, "[cache] file create error for key: %s: %v\n", key, err)
+		}
+		return
+	}
+	if err := json.NewEncoder(f).Encode(entry); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		if ghNotifyVerbose {
+			fmt.Fprintf(os.Stderr, "[cache] encode error for key: %s: %v\n", key, err)
+		}
+		return
+	}
+	f.Close()
+	os.Rename(tmpPath, path)
+	if ghNotifyVerbose {
+		fmt.Fprintf(os.Stderr, "[cache] stored key: %s\n", key)
+	}
+}
+
 func getNotifs(pageNum int, onlyParticipating, includeAll bool) ([]Notification, error) {
-	client := ghRestApiClient()
 	var notifs []Notification
 	endpoint := fmt.Sprintf("notifications?per_page=%d&page=%d&participating=%t&all=%t",
 		ghNotifyPerPageLimit, pageNum, onlyParticipating, includeAll)
+	cacheKey := fmt.Sprintf("notifs_%d_%t_%t", pageNum, onlyParticipating, includeAll)
+	if cacheGet(cacheKey, &notifs) {
+		if ghNotifyVerbose {
+			fmt.Fprintf(os.Stderr, "[api] notifications page %d served from cache\n", pageNum)
+		}
+		return notifs, nil
+	}
+	client := ghRestApiClient()
+	if ghNotifyVerbose {
+		fmt.Fprintf(os.Stderr, "[api] fetching notifications page %d from GitHub\n", pageNum)
+	}
 	if err := client.Get(endpoint, &notifs); err != nil {
 		return nil, err
 	}
+	cacheSet(cacheKey, notifs)
 	return notifs, nil
 }
 
@@ -254,6 +369,7 @@ func main() {
 	rootCmd.Flags().BoolVarP(&includeAll, "all", "a", false, "show all (read/unread) notifications")
 	rootCmd.Flags().BoolVarP(&printStatic, "static", "s", false, "print a static display")
 	rootCmd.Flags().BoolVarP(&markRead, "mark-read", "r", false, "mark all notifications as read")
+	rootCmd.Flags().BoolVarP(&ghNotifyVerbose, "verbose", "v", false, "enable verbose logging")
 
 	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		printHelpText(cmd)
@@ -474,6 +590,9 @@ func initConfig() {
 	viper.SetDefault("GH_NOTIFY_TOGGLE_PREVIEW_KEY", "tab")
 	viper.SetDefault("GH_NOTIFY_TOGGLE_HELP_KEY", "?")
 	viper.SetDefault("GH_NOTIFY_DEBUG_MODE", false)
+	viper.SetDefault("GH_NOTIFY_CACHE_ENABLED", true)
+	viper.SetDefault("GH_NOTIFY_CACHE_DURATION", "5m")
+	viper.SetDefault("GH_NOTIFY_VERBOSE", false)
 
 	_ = viper.ReadInConfig()
 
@@ -481,4 +600,19 @@ func initConfig() {
 	ghNotifyTogglePreviewKey = viper.GetString("GH_NOTIFY_TOGGLE_PREVIEW_KEY")
 	ghNotifyToggleHelpKey = viper.GetString("GH_NOTIFY_TOGGLE_HELP_KEY")
 	ghNotifyDebugMode = viper.GetBool("GH_NOTIFY_DEBUG_MODE")
+	ghNotifyVerbose = viper.GetBool("GH_NOTIFY_VERBOSE") || ghNotifyDebugMode
+
+	cacheEnabled = viper.GetBool("GH_NOTIFY_CACHE_ENABLED")
+	durStr := viper.GetString("GH_NOTIFY_CACHE_DURATION")
+	dur, err := time.ParseDuration(durStr)
+	if err != nil {
+		dur = 5 * time.Minute
+	}
+	cacheDuration = dur
+	xdgCache := os.Getenv("XDG_CACHE_HOME")
+	if xdgCache == "" {
+		xdgCache = filepath.Join(os.Getenv("HOME"), ".cache")
+	}
+	cacheDir = filepath.Join(xdgCache, "gh-notify")
+	os.MkdirAll(cacheDir, 0700)
 }
